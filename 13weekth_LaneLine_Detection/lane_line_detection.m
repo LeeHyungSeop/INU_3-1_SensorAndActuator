@@ -8,12 +8,13 @@ img_gray = rgb2gray(img_ori); % 1채널 unit8 img_gray = double(img_gray);
                               % (0 ~ 255) -> (0.0 ~ 1.0)
 
 figure(1); clf; imshow(uint8(img_gray));
+title("Original Image");
 
 col = length(img_gray(:,1)); 
 row = length(img_gray(1,:));
 img_gray = img_gray(col/2:col, 1:row);  % img_ori(672 * 1280 * 3) -> img_gray(227 * 1280)
 figure(2); clf; imshow(uint8(img_gray));
-
+title("Cropped Image");
 %% 1. gaussian filter
 
 % 정규분포    : Gaussian Distribution.            (mu=?, sigma=?)
@@ -57,32 +58,41 @@ G_Y = conv2(img1, sobelMaskY, 'same');
 
 figure(4); 
 clf; 
-subplot(211);imshow(uint8(G_X));
+subplot(211);
+imshow(uint8(G_X));
 title('G_x');
 
 subplot(212);
-imshow(uint8(G_Y));title('G_y');
+imshow(uint8(G_Y));
+title('G_y');
 
 % Calcultae magnitude of edge
-magnitude = sqrt((G_X.^2) + (G_Y.^2));  % Euclidean Distance = 대각선의 크기
+magnitude = sqrt((G_X.^2) + (G_Y.^2));  % Euclidean Distance = 대각선의 크기 (피타고라스)
 figure(5); clf; imshow(uint8(magnitude)); 
 title('Magnitude : sqrt(G_x^2 + G_y^2)');
 
 %Calculate directions/orientations
-theta = atan2(G_Y, G_X); theta = theta * 180/pi;
+theta = atan2(G_Y, G_X);
+theta = theta * 180/pi;
 %Adjustment for negative directions, making all directions positive
-col = length(img_gray(:,1)); row = length(img_gray(1,:)); 
+col = length(img_gray(:,1)); 
+row = length(img_gray(1,:)); 
 for i=1:col
     for j=1:row
         if (theta(i,j)<0)
-            theta(i,j)= 360 + theta(i,j);
+            theta(i,j)= 360 + theta(i,j); % range를 [0, 360]으로
         end 
     end
 end
 
 %% 2_2. quantization theta
+
+% 앞서 구한 각도 theta를 group화
+% 각 범위 [0, 360]를 4가지 구간으로 나누어 quantization 
+% Adjusting directions to nearest 0, 0+45(45), 0+45+45(90), or 0+45+45+45(135) degree
 qtheta = zeros(col, row);
-% Adjusting directions to nearest 0, 45, 90, or 135 degree
+
+% pdf slide 21 참고
 for i = 1 :col 
     for j = 1 : row 
         if (((theta(i,j) >= 0) && (theta(i, j) < 22.5 )) || ... 
@@ -102,9 +112,13 @@ for i = 1 :col
     end
 end
 %% 3. Non-Maximum Supression
-BW = zeros (col, row);
+
+% 0~1 image를 0 or 1로 바꾸겠다 (지역적으로 최대값이 아닌 edge를 제거하는 과정. -> edge에 기여하지 않는 pixel 제거 -> Sharp한 edge로 변경)
+BW = zeros (col, row); % 모두 0으로 만듦
+
 for i=2:col-1
     for j=2:row-1
+        % quantization theta=0인 애들끼리 비교. 가운데 pixel값이 max면? 1 아니면? 0
         if (qtheta(i,j)==0)
             BW(i,j) = (magnitude(i,j) == max([magnitude(i,j), ... 
             magnitude(i,j+1), magnitude(i,j-1)]));
@@ -120,4 +134,51 @@ for i=2:col-1
         end 
     end
 end
+
+BW_0 = BW;
+imshow(uint8((BW_0)));
+
+% BW는 0 or 1의 값을 갖게 되고, magnitude 행렬에 element-wise 곱을 하여 
+% 0인 부분은 제거해줌. 1인 부분은 살려둠.
 BW = BW.*magnitude;
+
+
+%% Hysteresis Thresholding
+
+T_min = 0.1; T_max = 0.2; % threshold max, min
+% max(max(BW))   : 전체 pixel값 중 최대값
+T_min = T_min * max(max(BW)); % 10% 미만, 초과인지 판단하기 위해 (미만? No edge, )
+T_max = T_max * max(max(BW)); % 20% 미만, 초과인지 판단하기 위해 (미만인데 10% 초과? Weak Edge, 20%초과? Strong Edge)
+                              % 정리) < 10% ? No edge / 10 < < 20 ? Weak edge / 20 < ? Strong edge 
+edge_final = zeros (col, row); 
+for i=1 :col
+    for j = 1 : row
+        if (BW(i, j) < T_min) % no edge라면? 0으로
+            edge_final(i, j) = 0;
+        elseif (BW(i, j) > T_max) % Strong edge라면? 1로
+            edge_final(i, j) = 1;
+
+        % Weak edge - Using 8-connected components
+        % 주변 8개가 모두 Strong Edge라면? 내가 뭐든지 간에 Strong Edge로 인정받을 수 있음
+        elseif (BW(i+1,j)>T_max || BW(i-1,j)>T_max || BW(i,j+1)>T_max ...
+                || BW(i,j-1)>T_max || BW(i-1, j-1)>T_max || BW(i-1, j+1)>T_max ... 
+                || BW(i+1, j+1)>T_max || BW(i+1, j-1)>T_max)
+                edge_final(i,j) = 1;
+                edge_final(i, j) = 1;
+        end 
+    end
+end
+img_canny = uint8(edge_final.*255); output_img = img_canny;
+figure(6); clf; imshow(output_img);
+title("Canny Edge Detection Algorithm 직접 구현 결과");
+
+%% Matlab edge('Canny') -> 위에 했던 모든 알고리즘을 한꺼번에 구현해줌...
+img_ori = imread('lanedetect.bmp');
+img_gray = rgb2gray(img_ori);
+img_gray = img_gray(length(img_gray(:,1))/2:end, 1:end); 
+img_edge = edge(img_gray, 'Canny', [0.1 0.2], 0.5); 
+                               % [T_min T_max], Sigma of Gaussian filter = 0.5
+% edge() : Matlab 지원 함수
+
+figure(); imshow(img_edge);
+title("Matlab edge('Canny') function 결과");
