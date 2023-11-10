@@ -37,7 +37,6 @@ qtheta=zeros(col,row);
 
 % 앞서 구한 각도 theta를 group화
 % 각 범위 [0, 360]를 4가지 구간으로 나누어 quantization 
-% Adjusting directions to nearest 0, 0+45(45), 0+45+45(90), or 0+45+45+45(135) degree
 for i = 1 :col 
     for j = 1 : row 
         if (((theta(i,j) >= 0) && (theta(i, j) < 22.5 )) || ... 

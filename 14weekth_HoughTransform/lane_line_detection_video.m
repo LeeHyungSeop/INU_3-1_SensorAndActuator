@@ -1,5 +1,5 @@
 clear all; clc;
-filename = 'solidYellowLeft.mp4';
+filename = 'challenge.mp4';
 
 % challenge.mp4
 % solidWhiteRight.mp4
@@ -47,7 +47,7 @@ while ~isDone(VideoSource)
     c1 = []; c2 = []; l = [];
     for k = 1:length(lines)
         % 실제 차선이 존재하는 각도 범위 내에 있으면 차선으로 인정.
-        if(lines(k).theta < 75 && lines(k).theta > -75)
+        if(lines(k).theta < 75 && lines(k).theta > -75)  % if(lines(k).theta < 60 && lines(k).theta > -60)  
             c1 = [c1; [lines(k).point1 2]];     % 시작점
             c2 = [c2; [lines(k).point2 2]];     % 끝점
             l = [l;lines(k).point1 lines(k).point2]; %

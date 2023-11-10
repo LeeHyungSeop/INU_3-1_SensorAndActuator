@@ -118,7 +118,6 @@ BW = zeros (col, row); % 모두 0으로 만듦
 
 for i=2:col-1
     for j=2:row-1
-        % quantization theta=0인 애들끼리 비교. 가운데 pixel값이 max면? 1 아니면? 0
         if (qtheta(i,j)==0)
             BW(i,j) = (magnitude(i,j) == max([magnitude(i,j), ... 
             magnitude(i,j+1), magnitude(i,j-1)]));
